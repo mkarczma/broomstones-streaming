@@ -1,0 +1,127 @@
+youtube + obs
+
+credentials:
+        Using a testing account:
+        bs.ls.testing@gmail.com
+        Password: broomstones+0
+
+
+goals:
+- start streaming automatically
+- stream multiple videos concurrently from different obs instances
+- schedule automatically based on website
+- name streams nicely based on website
+
+
+- got YouTube Data API v3, public data acces
+ - key: AIzaSyAZaDambowdm9tyJFOssp8Q6NZNi4xsMS8
+ - haven't restricted it yet, but that may be necessary/useful
+ - channel is at https://www.youtube.com/channel/UCtNGe6kscdIlajxc8ti1ZdQ
+
+- installed python 3.11.5 on windows
+ - put it in c:\Program Files\Python\Python311\ and let the installer add dirs to everyone's Path
+ - install it for every user
+ - do not add a .py launcher
+ - disable max_path limit at the end
+ - setup a virtual environment "youtube_api" in C:\Users\techn\Documents\streaming-scripting\
+     pip3 install virtualenv
+     c:\Users\techn\AppData\Roaming\Python\Python312\Scripts\virtualenv.exe youtube_api
+     youtube_api\Scripts\activate
+     youtube_api\Scripts\pip.exe install google-api-python-client google-auth-oauthlib wmi
+ - needed to add %USERPROFILE%\AppData\Roaming\Python\Python311\Scripts to my path
+ - documentation is in https://github.com/googleapis/google-api-python-client/blob/main/docs/README.md
+ - see https://github.com/googleapis/google-api-python-client
+- copy files over. we need:
+ - the script (youtube-streaming.py)
+ - oauth authentication (client_secret_846837736816-gh4fg7fvng3g9i9e46qrprtnrmtk0l57.apps.googleusercontent.com.json)
+ - the runner (run_script.bat)
+  - the runner needs to have different stream and sheet information - this needs to be updated
+- add a Task Scheduler task
+ - under Task Scheduler Library, create a new folder: Broomstones
+ - in that folder, create a new task (not a basic task!)
+ - name is "Run YouTube Script"
+ - for now keep "Run only when user is logged in on"
+ - under triggers, set it up to start at 4:59:05 am, repeat every 5 minutes for 24 hours, stop all tasks at end of repetition duration, stop tasks longer than 5 minutes. repeat the task daily with no expiry
+ - action is to start C:\Users\techn\Documents\streaming-scripting\run_script.bat, in C:\Users\techn\ directory
+ - conditions : wake the computer to run this task
+ - settings: allow on demand, run as soon as possible after missed, stop if running longer than 10 minutes (redundant?), if it doesn't stop when requested, force it to stop; if the task is already running, stop the existing instance
+ - for the task to run, and log into broomstones.webcasting@gmail.com account all the way
+
+- youtube user id is under Settings/Advanced Settings
+- to create more channels go to https://www.youtube.com/account and click "Create a new channel"
+ - this creates a whole new account!? (so new api keys, etc!)
+
+
+- setting up oath
+ - go to console: https://console.cloud.google.com/apis/credentials/
+ - pick the project
+ - click create credentials and try to do oath, which will setpu a consent screen first time around
+  - picked external user and plan to keep it in testing permanently
+ - click create credentials again and this time it'll actually setup oath
+  - selected "desktop app" as the option since that's probably what this'll be
+  - for name just picked "client 1" - it probably doesn't matter
+  - downloaded the json secrets file and put it together with others
+  - shortened name to just "client_secret_846837736816.json"
+ - it is easy to upgrade 
+ - download google-auth libraries:
+  - do this within the virtualenv!
+  - pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+ - add authentication code to the script
+        from google_oauth_oauthlib.flow import InstalledAppFlow
+        from google.auth.transport.requests improt requests
+        flow = InstalledAppFlow.from_clients_secrets_file("client_secret_846837736816.json")
+ - from https://developers.google.com/people/quickstart/python
+  - copy the example to get a credentials token
+  - also helpful: https://www.youtube.com/watch?v=vQQEaSnQ_bs
+
+- in obs studio, the streaming key can be updated easily
+ - it is in C:\Users\Michal\AppData\Roaming\obs-studio\basic\profiles\Untitled\service.json
+   (where Untitled is really the profile name, since obs supports multiple profiles)
+ - obs can also be controlled through scripting (though key isn't exposed I think)
+    https://docs.obsproject.com/scripting
+
+
+
+
+starting the stream. now i will pause for 10 seoncds, startin around second 20 or 30
+wondering if there was a pause in the recording or not
+
+stream key 1: bmtj-e0jk-qu3d-4m26-eudg
+stream key 2: 5hjp-cjt1-vcrb-vjzg-98ey
+
+
+
+On machine 1:
+- downloaded Python and installed it in c:\Program Files\Python\Python3.12
+ - installed for all users and added environment variables
+ - created  c:\users\techn\Documents\streaming-scripting\
+ - in streaning-scripting:
+   - install virtualenv: pip3 install virtualenv
+   - create youtube_api virtualenv: c:\Users\techn\AppData\Roaming\Python\Python312\Scripts\virtulenv.exe youtube_api
+     - directory may change
+   - enter the venv: youtube_api\Scripts\activate
+   - install youtube api and wmi: youtube_api\Scripts\pip.exe install google-api-python-client wmi
+
+
+
+---------------------
+
+
+todo:
+0. easy: start broadcast earlier. 4 minutes?
+1. setup logging
+ - joe suggests papertrail: https://broomstonesworkspace.slack.com/archives/C05UGK6HVPW/p1697034762782449?thread_ts=1697034421.896279&cid=C05UGK6HVPW
+2. setup somewhere to deploy from
+ + need a way to conserve configs. try https://stackoverflow.com/questions/2763875/batch-file-include-external-file-for-variables
+3. setup on desktop scripts to:
+ - start and stop obs
+ - list all scheduled broadcasts
+ - delete all scheduled broadcasts - may need to identify them!
+ - list calendar entries, airtable entries and manual calendar entries
+ - force refresh of oauth with the browser
+ - start and stop running the script
+ - pull new version of everything from somewhere
+4. fix stopping obs when killing streams
+5. stop crashing on YT exceptions
++6. limit broadcasts by prefixes
+7. setup airtable - https://broomstonesworkspace.slack.com/archives/C05UGK6HVPW/p1696208666108159
