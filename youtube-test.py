@@ -287,8 +287,7 @@ for s in schedule['weekly']:
     try:
         if "disabled" in s and s["disabled"] == True: continue
         if "weekday" not in s :
-            print("no 'weekday' in %s" % str(s))
-            continue
+            raise Exception ("no 'weekday' in %s" % str(s))
         s_weekday = s['weekday']
         if s_weekday == "Monday" : wd = 0
         elif s_weekday == "Tuesday" : wd = 1
@@ -298,29 +297,25 @@ for s in schedule['weekly']:
         elif s_weekday == "Saturday" : wd = 5
         elif s_weekday == "Sunday" : wd = 6
         else:
-            print("invalid weekday in %s" % str(s))
-            continue
+            raise Exception ("invalid weekday in %s" % str(s))
         diff_days = (7 + today_weekday - wd) % 7
         s_date = today + datetime.timedelta(days=diff_days  )
         #print("days_diff %d date %s" % (diff_days, s_date.isoformat()))
 
         if "when" not in s :
-            print("no 'when' in %s" % str(s))
-            continue
+            raise Exception ("no 'when' in %s" % str(s))
         start_str = s_date.isoformat() + " " + s['when']
         start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
         if "duration_minutes" not in s :
-            print("no 'duration_minutes' in %s" % str(s))
-            continue
+            raise Exception ("no 'duration_minutes' in %s" % str(s))
         duration = s['duration_minutes']
         end = start + datetime.timedelta(minutes=duration)
 
         if "title" not in s :
-            print("no 'title' in %s" % str(s))
-            continue
+            raise Exception ("no 'title' in %s" % str(s))
         schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
     except Exception as err:
-        print("ERROR %s while reading schedule entry: %s" % ( err, str(s) ))
+        print("ERROR %s while reading weekly schedule entry: %s" % ( err, str(s) ))
         if args.only_check_schedule : quit()
 
 # now go through the "individual" entries
@@ -331,17 +326,15 @@ for s in schedule['individual']:
         start_str = s['when']
         start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
         if "duration_minutes" not in s :
-            print("no 'duration_minutes' in %s" % str(s))
-            continue
+            raise Exception ("no 'duration_minutes' in %s" % str(s))
         duration = s['duration_minutes']
         end = start + datetime.timedelta(minutes=duration)
 
         if "title" not in s :
-            print("no 'title' in %s" % str(s))
-            continue
+            raise Exception ("no 'title' in %s" % str(s))
         schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
     except Exception as err:
-        print("ERROR %s while reading schedule entry: %s" % ( err, str(s) ))
+        print("ERROR %s while reading individual schedule entry: %s" % ( err, str(s) ))
         if args.only_check_schedule : quit()
 
 # update the title
