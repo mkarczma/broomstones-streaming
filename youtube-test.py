@@ -50,6 +50,9 @@ parser.add_argument('--broadcast_overrun_minutes', default=9, type=int)
 parser.add_argument('--debug__print_upcoming_calendar_types', action='store_true')
 parser.add_argument('--broadcast_prefix', action='append', nargs='+')
 parser.add_argument('--override_time')
+parser.add_argument('--only_check_schedule', action='store_true')
+
+
 args = parser.parse_args()
 
 
@@ -246,17 +249,23 @@ if args.stop_obs:
 schedule = { "weekly" : [ ], "individual" : [ ] }
 
 if args.schedule_file is not None:
-    with open(args.schedule_file) as json_data:
-        schedule = json.load(json_data)
-        json_data.close()
+    try:
+        with open(args.schedule_file) as json_data:
+            file_schedule = json.load(json_data)
+            json_data.close()
+
+            if "individual" not in file_schedule : file_schedule["individual"] = [ ]
+            if "weekly" not in file_schedule : file_schedule["weekly"] = [ ]
+
+            # copy the schedule over
+            schedule = file_schedule
+    except Exception as err:
+        print("error while reading schedule file:", err)
+        if args.only_check_schedule : quit()
+
 
 # add the schedule from the calendar
 schedule ['individual'] = schedule ['individual'] + calendar_sched
-print(schedule)
-
-
-#print("schedule:")
-#pprint.pprint(schedule, width=100)
 
 # within the schedule, find the entry that is *ending* soonest
 
@@ -272,42 +281,81 @@ class ScheduledStream:
 
 schedule_list = [ ]
 
+
 # first go through the "weekly" entries
 for s in schedule['weekly']:
-    if "disabled" in s and s["disabled"] == True: continue
-    s_weekday = s['weekday']
-    if s_weekday == "Monday" : wd = 0
-    if s_weekday == "Tuesday" : wd = 1
-    if s_weekday == "Wednesday" : wd = 2
-    if s_weekday == "Thursday" : wd = 3
-    if s_weekday == "Friday" : wd = 4
-    if s_weekday == "Saturday" : wd = 5
-    if s_weekday == "Sunday" : wd = 6
-    diff_days = (7 + today_weekday - wd) % 7
-    s_date = today + datetime.timedelta(days=diff_days  )
-    #print("days_diff %d date %s" % (diff_days, s_date.isoformat()))
+    try:
+        if "disabled" in s and s["disabled"] == True: continue
+        if "weekday" not in s :
+            print("no 'weekday' in %s" % str(s))
+            continue
+        s_weekday = s['weekday']
+        if s_weekday == "Monday" : wd = 0
+        elif s_weekday == "Tuesday" : wd = 1
+        elif s_weekday == "Wednesday" : wd = 2
+        elif s_weekday == "Thursday" : wd = 3
+        elif s_weekday == "Friday" : wd = 4
+        elif s_weekday == "Saturday" : wd = 5
+        elif s_weekday == "Sunday" : wd = 6
+        else:
+            print("invalid weekday in %s" % str(s))
+            continue
+        diff_days = (7 + today_weekday - wd) % 7
+        s_date = today + datetime.timedelta(days=diff_days  )
+        #print("days_diff %d date %s" % (diff_days, s_date.isoformat()))
 
-    start_str = s_date.isoformat() + " " + s['when']
-    start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
-    duration = s['duration_minutes']
-    end = start + datetime.timedelta(minutes=duration)
+        if "when" not in s :
+            print("no 'when' in %s" % str(s))
+            continue
+        start_str = s_date.isoformat() + " " + s['when']
+        start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
+        if "duration_minutes" not in s :
+            print("no 'duration_minutes' in %s" % str(s))
+            continue
+        duration = s['duration_minutes']
+        end = start + datetime.timedelta(minutes=duration)
 
-    schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
+        if "title" not in s :
+            print("no 'title' in %s" % str(s))
+            continue
+        schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
+    except Exception as err:
+        print("ERROR %s while reading schedule entry: %s" % ( err, str(s) ))
+        if args.only_check_schedule : quit()
 
 # now go through the "individual" entries
 for s in schedule['individual']:
-    start_str = s['when']
-    start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
-    duration = s['duration_minutes']
-    end = start + datetime.timedelta(minutes=duration)
+    try:
+        if "when" not in s :
+            raise Exception ("no 'when' in %s" % str(s))
+        start_str = s['when']
+        start = datetime.datetime.fromisoformat(start_str).replace(tzinfo=local_tz)
+        if "duration_minutes" not in s :
+            print("no 'duration_minutes' in %s" % str(s))
+            continue
+        duration = s['duration_minutes']
+        end = start + datetime.timedelta(minutes=duration)
 
-    schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
+        if "title" not in s :
+            print("no 'title' in %s" % str(s))
+            continue
+        schedule_list.append(ScheduledStream(start=start, end=end, title=s['title']))
+    except Exception as err:
+        print("ERROR %s while reading schedule entry: %s" % ( err, str(s) ))
+        if args.only_check_schedule : quit()
+
+# update the title
+for s in schedule_list:
+    if args.sheet:
+        print("sheet = '%s'" % args.sheet)
+        s.title = s.title.replace("%SHEET%", args.sheet)
+    s.title = s.title.replace("%DATE%", s.start.strftime("%b %d %Y"))
 
 sched_string = ""
 for s in schedule_list: sched_string = sched_string + " " + str(s)
-
 print("schedule list: %s" % sched_string)
 
+if args.only_check_schedule : quit()
 
 # build a list of streams that should either be active right now
 # of should go active in the next 10 minutes
@@ -315,10 +363,6 @@ upcoming_list = []
 active_list = []
 diff_10minutes = datetime.timedelta(minutes=10)
 for s in schedule_list:
-    # update the title
-    if args.sheet:
-        s.title = s.title.replace("%SHEET%", args.sheet)
-    s.title = s.title.replace("%DATE%", s.start.strftime("%b %d %Y"))
 
     if args.print_schedule:
         print('"%s" %s to %s' % ( s.title, s.start, s.end))
