@@ -17,8 +17,6 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 
 
-my_api_key = 'AIzaSyAZaDambowdm9tyJFOssp8Q6NZNi4xsMS8'
-my_username = 'tNGe6kscdIlajxc8ti1ZdQ'
 token_filename='ggl_oauth_token.json'
 secrets_filename='client_secret_846837736816-gh4fg7fvng3g9i9e46qrprtnrmtk0l57.apps.googleusercontent.com.json'
 
@@ -397,7 +395,6 @@ if not ggl_creds or not ggl_creds.valid:
 print("authentication done")
 
 
-#yt = build('youtube', 'v3', developerKey=my_api_key)
 yt = build('youtube', 'v3',  credentials=ggl_creds)
 ls = yt.liveStreams()
 br = yt.liveBroadcasts()

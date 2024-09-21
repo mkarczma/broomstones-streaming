@@ -1,9 +1,6 @@
 youtube + obs
 
-credentials:
-        Using a testing account:
-        bs.ls.testing@gmail.com
-        Password: broomstones+0
+credentials: in the PRIVATE file!
 
 
 goals:
@@ -14,7 +11,7 @@ goals:
 
 
 - got YouTube Data API v3, public data acces
- - key: AIzaSyAZaDambowdm9tyJFOssp8Q6NZNi4xsMS8
+ - key: in PRIVATE file!!
  - haven't restricted it yet, but that may be necessary/useful
  - channel is at https://www.youtube.com/channel/UCtNGe6kscdIlajxc8ti1ZdQ
 
