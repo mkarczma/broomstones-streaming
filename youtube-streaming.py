@@ -124,9 +124,9 @@ if args.club_calendar:
             for r in resoures_list:
                 resources[r["id"]] = r["title"]
             print ("resources dictionary: %s" % resources)
-        if l.startswith("initialEvents: ") :
+        if l.startswith("////initialEvents: ") :
             print("events before stripping: " + l[:30] + " === " + l[-30:])
-            events_line = l[:-1][15:]
+            events_line = l[:-1][19:]
             print("events after stripping: " + events_line[:30] + " === " + events_line[-30:])
             events = json.loads(events_line)
             print("first event: %s" % events[0])
@@ -140,7 +140,7 @@ if args.club_calendar:
 
     print('done parsing calendar. add_events = %d events = %d' % (len(add_events), len(events)))
 
-    tomorrow = now + datetime.timedelta(days=2)
+    tomorrow = now + datetime.timedelta(days=7)
 
     trimmed_events = [ ]
     trimmed_add_events = [ ]
@@ -155,17 +155,22 @@ if args.club_calendar:
             # we want to include this event
             trimmed_add_events.append(e)
         except Exception as err:
-            print("caught an error %s while processing event %s" % (err, e))
+            print("caught an error %s while processing add_event %s" % (err, e))
 
 
     for e in events:
-        start = datetime.datetime.fromisoformat(e['start'])
-        end = datetime.datetime.fromisoformat(e['end'])
+        try:
+            start = datetime.datetime.fromisoformat(e['start'])
+            end = datetime.datetime.fromisoformat(e['end'])
 
-        if start > tomorrow or end < now : continue
+            if start > tomorrow or end < now : continue
 
-        # we want to include this event
-        trimmed_events.append(e)
+            # we want to include this event
+            trimmed_events.append(e)
+
+        except Exception as err:
+            print("caught an error %s while processing event %s" % (err, e))
+
 
     print('done parsing calendar. for next 24h: add_events = %d events = %d' % (len(trimmed_add_events), len(trimmed_events)))
 
