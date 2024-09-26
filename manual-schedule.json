@@ -14,6 +14,11 @@
             "when" : "2023-09-29 08:50",
             "duration_minutes" : 10,
             "title" : "Spiel X, Draw 3, %SHEET%  %DATE%"
+        },
+        {
+            "when" : "2024-09-21 20:50",
+            "duration_minutes" : 10,
+            "title" : "Spiel X, Draw 3, %SHEET%  %DATE%"
         }
     ]
 }

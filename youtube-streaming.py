@@ -49,6 +49,7 @@ parser.add_argument('--debug__print_upcoming_calendar_types', action='store_true
 parser.add_argument('--broadcast_prefix', action='append', nargs='+')
 parser.add_argument('--override_time')
 parser.add_argument('--only_check_schedule', action='store_true')
+parser.add_argument('--yt_oauth_client_secret', help='YouTube OAuth Client Secret JSON')
 
 
 args = parser.parse_args()
@@ -61,6 +62,9 @@ for l in args_broadcast_prefixes:
     for p in l:
         broadcast_prefixes.append(p)
 
+
+if args.yt_oauth_client_secret:
+    secrets_filename = args.yt_oauth_client_secret
 
 real_start_time = None
 def get_now():
@@ -142,13 +146,16 @@ if args.club_calendar:
     trimmed_add_events = [ ]
 
     for e in add_events:
-        start = datetime.datetime.fromisoformat(e[3])
-        end = datetime.datetime.fromisoformat(e[4])
+        try:
+            start = datetime.datetime.fromisoformat(e[3])
+            end = datetime.datetime.fromisoformat(e[4])
 
-        if start > tomorrow or end < now : continue
+            if start > tomorrow or end < now : continue
 
-        # we want to include this event
-        trimmed_add_events.append(e)
+            # we want to include this event
+            trimmed_add_events.append(e)
+        except Exception as err:
+            print("caught an error %s while processing event %s" % (err, e))
 
 
     for e in events:
@@ -374,7 +381,7 @@ ggl_creds = None
 # created automatically when the authoriggl_credszation flow completes for the first
 # time.
 if os.path.exists(token_filename):
-    print ("getting credentials from token filename")
+    print ("getting credentials from token filename %s" % token_filename)
     ggl_creds = Credentials.from_authorized_user_file(token_filename, SCOPES)
 
 # If there are no (valid) credentials available, let the user log in.
@@ -438,6 +445,10 @@ if args.stream_title is not None:
         if name == args.stream_title:
             sid = s.get('id')
             break
+
+    if sid is None:
+        print("unable to find stream_title=`%s` in yt_streams_list=%s" % (args.stream_title, yt_streams_list))
+        quit(255)
 
     print ('stream "' + args.stream_title + '" has ID ' + sid)
 

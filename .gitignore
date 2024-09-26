@@ -1,3 +1,4 @@
 PRIVATE.txt
 ggl_oauth_token.json
-
+config.cmd
+client_secret_*.json
