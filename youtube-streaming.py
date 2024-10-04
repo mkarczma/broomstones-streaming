@@ -44,12 +44,13 @@ parser.add_argument('--stop_obs', action='store_true')
 parser.add_argument('--always_auto_stop_obs', action='store_true')
 parser.add_argument('--obs_path')
 parser.add_argument('--club_calendar')
-parser.add_argument('--broadcast_overrun_minutes', default=9, type=int)
 parser.add_argument('--debug__print_upcoming_calendar_types', action='store_true')
 parser.add_argument('--broadcast_prefix', action='append', nargs='+')
 parser.add_argument('--override_time')
 parser.add_argument('--only_check_schedule', action='store_true')
 parser.add_argument('--yt_oauth_client_secret', help='YouTube OAuth Client Secret JSON')
+parser.add_argument('--prologue_minutes', default=5, type=int)
+parser.add_argument('--epilogue_minutes', default=5, type=int)
 
 
 args = parser.parse_args()
@@ -364,18 +365,31 @@ if args.only_check_schedule : quit()
 # of should go active in the next 10 minutes
 upcoming_list = []
 active_list = []
+prologue_time = datetime.timedelta(minutes=args.prologue_minutes)
+epilogue_time = datetime.timedelta(minutes=args.epilogue_minutes)
 diff_10minutes = datetime.timedelta(minutes=10)
+diff_1minute = datetime.timedelta(minutes=1)
 for s in schedule_list:
 
     if args.print_schedule:
         print('"%s" %s to %s' % ( s.title, s.start, s.end))
 
-    # first the currently active - though drop anything that will end in less than a minute!
-    if s.start <= now and s.end >= now + datetime.timedelta(minutes=1):
+    # first the currently active
+    if (s.start - prologue_time <= now) and (s.end + epilogue_time >= now):
         active_list.append(s)
     # now the soon-to-start
-    elif s.start > now and s.start - diff_10minutes <= now:
+    elif s.start > now and s.start - prologue_time - diff_10minutes <= now:
         upcoming_list.append(s)
+
+
+sched_string = ""
+for s in active_list: sched_string = sched_string + " " + str(s)
+print("active list: %s" % sched_string)
+sched_string = ""
+for s in upcoming_list: sched_string = sched_string + " " + str(s)
+print("upcoming list: %s" % sched_string)
+
+
 
 sid=args.sid
 bid=args.bid
@@ -636,6 +650,12 @@ def run_schedule():
                     yt_possible_list.remove(b)
                     break
             else:
+                # disabling below because it messes up needs_obs which then starts obs and leaves it running
+                # # this broadcast is not in YT yet. Do not schedule it if the end time is
+                # # in less than a minute - it is just not worth it!
+                # if s.end - diff_1minute < now :
+                #     print("skipping broadcast", s.title, " because it will end in less than a minute at ", s.end, " now ", now, " end-1min ", s.end-diff_1minute)
+                #     continue
                 start = s.start if s.start > now else now + datetime.timedelta(seconds=5)
                 b = schedule_broadcast(title=s.title, start=start, end=s.end)
                 new_broadcast = bind_broadcast(sid=sid, bid=b["id"])
@@ -681,17 +701,20 @@ def run_schedule():
             new_status = transition_broadcast(bid=bid, target_status='testing')
             b['status']['lifeCycleStatus'] = new_status
             print("transitioned to state " + new_status)
+            need_obs = True
 
         # if we should have started, we should transition to live!
-        # allow myself to start up to 60 seconds early
-        if now + datetime.timedelta(seconds=60) >= start:
+        # allow myself to start early according to prologue_time
+        if now + prologue_time >= start:
             if b['status']['lifeCycleStatus'] == 'testStarting' :
                 print('broadcast "%s" needs a few seconds to transition to "testing". Will try again.' % title)
                 schedule_needs_retry = True
+                need_obs = True
             if b['status']['lifeCycleStatus'] == 'testing':
                 print('transitioning "%s" to "live"' % title)
                 new_status = transition_broadcast(bid=bid, target_status='live')
                 b['status']['lifeCycleStatus'] = new_status
+                need_obs = True
                 # we will leave this broadcast in "upcoming" list for now
 
     if need_obs and not obs_is_running:
@@ -708,7 +731,7 @@ def run_schedule():
         title = b['snippet']['title']
 
 
-        extra_minutes = datetime.timedelta(minutes=args.broadcast_overrun_minutes)
+        extra_minutes = epilogue_time
         extra_minutes += datetime.timedelta(seconds=0) if b['contentDetails']['boundStreamId'] == sid else datetime.timedelta(minutes=30)
 
         # check if the broadcast should have ended by now
@@ -747,8 +770,8 @@ while not schedule_successful:
     schedule_successful = run_schedule()
 
     if not schedule_successful:
-        print("Sleeping for 5 seconds before checking on broadcasts with YouTube")
-        time.sleep(5)
+        print("Sleeping for 15 seconds before checking on broadcasts with YouTube")
+        time.sleep(15)
         get_now()
 
 
