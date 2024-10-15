@@ -24,7 +24,7 @@ goals:
      pip3 install virtualenv
      c:\Users\techn\AppData\Roaming\Python\Python312\Scripts\virtualenv.exe youtube_api
      youtube_api\Scripts\activate
-     youtube_api\Scripts\pip.exe install google-api-python-client google-auth-oauthlib wmi
+     youtube_api\Scripts\pip.exe install google-api-python-client google-auth-oauthlib wmi icalendar
  - needed to add %USERPROFILE%\AppData\Roaming\Python\Python311\Scripts to my path
  - documentation is in https://github.com/googleapis/google-api-python-client/blob/main/docs/README.md
  - see https://github.com/googleapis/google-api-python-client

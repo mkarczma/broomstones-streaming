@@ -10,6 +10,9 @@ import io
 import requests
 import math
 
+import urllib.request
+import icalendar
+
 from googleapiclient.discovery import build
 
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -51,9 +54,12 @@ parser.add_argument('--only_check_schedule', action='store_true')
 parser.add_argument('--yt_oauth_client_secret', help='YouTube OAuth Client Secret JSON')
 parser.add_argument('--prologue_minutes', default=5, type=int)
 parser.add_argument('--epilogue_minutes', default=5, type=int)
+parser.add_argument('--ical_addr', help='"Secret address in iCal format" from specific Calendar Settings')
+parser.add_argument('--ical_sheet_name', help='Sheet string name in iCal - must be in LOCATION field')
 
 
 args = parser.parse_args()
+
 
 
 args_broadcast_prefixes = []
@@ -66,6 +72,12 @@ for l in args_broadcast_prefixes:
 
 if args.yt_oauth_client_secret:
     secrets_filename = args.yt_oauth_client_secret
+
+prologue_time = datetime.timedelta(minutes=args.prologue_minutes)
+epilogue_time = datetime.timedelta(minutes=args.epilogue_minutes)
+diff_10minutes = datetime.timedelta(minutes=10)
+diff_1minute = datetime.timedelta(minutes=1)
+
 
 real_start_time = None
 def get_now():
@@ -188,7 +200,6 @@ if args.club_calendar:
             print('type %s: %s %s' % (t, t in wanted_types, trimmed_add_events[n]))
             printed_types[t] = 0
 
-    print("%s" % args.sheet)
     for n in range(len(trimmed_events)):
         e = trimmed_events[n]
         t = e['extendedProps']['type']
@@ -213,6 +224,39 @@ if args.club_calendar:
                 game_name = trimmed_add_events[n][0].split(' - ')[0]
                 title = "%s - %s, %s" % (game_name, start.strftime("%b %d, %Y %#I:%M %p"), resources[e['resourceId']])
                 calendar_sched.append( { 'title' : title, 'when' : e['start'], 'duration_minutes' : event_duration_in_minutes } )
+                print('added %s' % calendar_sched[-1]['title'])
+
+
+
+
+
+if args.ical_addr:
+    ical_sheet_name = args.ical_sheet_name
+    print("gcal:", args.ical_addr, " sheet name: ", ical_sheet_name)
+    if not ical_sheet_name:
+        print("ERROR: if --ical_addr is given, --ical_sheet_name must also be present")
+        quit()
+    response = urllib.request.urlopen(args.ical_addr)
+    ical = response.read().decode('utf-8')
+    gcal = icalendar.Calendar.from_ical(ical)
+    for event in gcal.walk('VEVENT'):
+        if "DTSTART" not in event : continue
+        if "SUMMARY" not in event : continue
+        if "DTEND" not in event : continue
+        if "LOCATION" not in event : continue
+
+        start_time = event["DTSTART"].dt
+        end_time = event["DTEND"].dt
+        duration_minutes = math.ceil((end_time - start_time).total_seconds() / 60)
+        title = event["SUMMARY"].to_ical().decode()
+        location = event["LOCATION"].to_ical().decode()
+
+        if ical_sheet_name not in location : continue
+
+        if isinstance(start_time, datetime.datetime):
+            if start_time + datetime.timedelta(days=1) > now and end_time < now + datetime.timedelta(days=1):
+
+                calendar_sched.append( { 'title' : title, 'when' : datetime.datetime.fromisoformat(start_time.isoformat()).astimezone(local_tz).isoformat(), 'duration_minutes' : duration_minutes } )
                 print('added %s' % calendar_sched[-1]['title'])
 
 
@@ -351,9 +395,9 @@ for s in schedule['individual']:
 # update the title
 for s in schedule_list:
     if args.sheet:
-        print("sheet = '%s'" % args.sheet)
         s.title = s.title.replace("%SHEET%", args.sheet)
-    s.title = s.title.replace("%DATE%", s.start.strftime("%b %d %Y"))
+    s.title = s.title.replace("%DATE%", s.start.strftime("%b %d, %Y"))
+    s.title = s.title.replace("%DATETIME%", s.start.strftime("%b %d, %Y %I:%M %p"))
 
 sched_string = ""
 for s in schedule_list: sched_string = sched_string + " " + str(s)
@@ -365,10 +409,6 @@ if args.only_check_schedule : quit()
 # of should go active in the next 10 minutes
 upcoming_list = []
 active_list = []
-prologue_time = datetime.timedelta(minutes=args.prologue_minutes)
-epilogue_time = datetime.timedelta(minutes=args.epilogue_minutes)
-diff_10minutes = datetime.timedelta(minutes=10)
-diff_1minute = datetime.timedelta(minutes=1)
 for s in schedule_list:
 
     if args.print_schedule:
@@ -644,20 +684,23 @@ def run_schedule():
                 if (True
                         and s.title == title
                         and s.end == end
-                        and ((s.start == start) or (s.start < now))
+                        and ((s.start == start) or (s.start > now))
                         and bsid == sid):
                     # have to remove this broadcast from my list so it is not confused with another stream
                     yt_possible_list.remove(b)
                     break
             else:
-                # disabling below because it messes up needs_obs which then starts obs and leaves it running
+                # disabling below because it messes up need_obs which then starts obs and leaves it running
                 # # this broadcast is not in YT yet. Do not schedule it if the end time is
                 # # in less than a minute - it is just not worth it!
                 # if s.end - diff_1minute < now :
                 #     print("skipping broadcast", s.title, " because it will end in less than a minute at ", s.end, " now ", now, " end-1min ", s.end-diff_1minute)
                 #     continue
-                start = s.start if s.start > now else now + datetime.timedelta(seconds=5)
-                b = schedule_broadcast(title=s.title, start=start, end=s.end)
+                start = s.start
+                end = s.end
+                #start = start if start > now else now + datetime.timedelta(seconds=5)
+                #end = end if start < end else start + datetime.timedelta(seconds=60)
+                b = schedule_broadcast(title=s.title, start=start, end=end)
                 new_broadcast = bind_broadcast(sid=sid, bid=b["id"])
                 yt_upcoming_list.append(new_broadcast)
 
@@ -760,6 +803,7 @@ def run_schedule():
 
 schedule_successful = False
 first_iter = True
+num_iters = 0
 while not schedule_successful:
 
     if not first_iter:
@@ -773,6 +817,10 @@ while not schedule_successful:
         print("Sleeping for 15 seconds before checking on broadcasts with YouTube")
         time.sleep(15)
         get_now()
+
+    num_iters += 1
+    if num_iters > 4 : break
+
 
 
 yt.close()
