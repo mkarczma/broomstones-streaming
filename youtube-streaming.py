@@ -231,33 +231,37 @@ if args.club_calendar:
 
 
 if args.ical_addr:
-    ical_sheet_name = args.ical_sheet_name
-    print("gcal:", args.ical_addr, " sheet name: ", ical_sheet_name)
-    if not ical_sheet_name:
-        print("ERROR: if --ical_addr is given, --ical_sheet_name must also be present")
-        quit()
-    response = urllib.request.urlopen(args.ical_addr)
-    ical = response.read().decode('utf-8')
-    gcal = icalendar.Calendar.from_ical(ical)
-    for event in gcal.walk('VEVENT'):
-        if "DTSTART" not in event : continue
-        if "SUMMARY" not in event : continue
-        if "DTEND" not in event : continue
-        if "LOCATION" not in event : continue
+    try:
+        ical_sheet_name = args.ical_sheet_name
+        print("gcal:", args.ical_addr, " sheet name: ", ical_sheet_name)
+        if not ical_sheet_name:
+            print("ERROR: if --ical_addr is given, --ical_sheet_name must also be present")
+            quit()
+        response = urllib.request.urlopen(args.ical_addr)
+        ical = response.read().decode('utf-8')
+        gcal = icalendar.Calendar.from_ical(ical)
+        for event in gcal.walk('VEVENT'):
+            if "DTSTART" not in event : continue
+            if "SUMMARY" not in event : continue
+            if "DTEND" not in event : continue
+            if "LOCATION" not in event : continue
 
-        start_time = event["DTSTART"].dt
-        end_time = event["DTEND"].dt
-        duration_minutes = math.ceil((end_time - start_time).total_seconds() / 60)
-        title = event["SUMMARY"].to_ical().decode()
-        location = event["LOCATION"].to_ical().decode()
+            start_time = event["DTSTART"].dt
+            end_time = event["DTEND"].dt
+            duration_minutes = math.ceil((end_time - start_time).total_seconds() / 60)
+            title = event["SUMMARY"].to_ical().decode()
+            location = event["LOCATION"].to_ical().decode()
 
-        if ical_sheet_name not in location : continue
+            if ical_sheet_name not in location : continue
 
-        if isinstance(start_time, datetime.datetime):
-            if start_time + datetime.timedelta(days=1) > now and end_time < now + datetime.timedelta(days=1):
+            if isinstance(start_time, datetime.datetime):
+                if start_time + datetime.timedelta(days=1) > now and end_time < now + datetime.timedelta(days=1):
 
-                calendar_sched.append( { 'title' : title, 'when' : datetime.datetime.fromisoformat(start_time.isoformat()).astimezone(local_tz).isoformat(), 'duration_minutes' : duration_minutes } )
-                print('added %s' % calendar_sched[-1]['title'])
+                    calendar_sched.append( { 'title' : title, 'when' : datetime.datetime.fromisoformat(start_time.isoformat()).astimezone(local_tz).isoformat(), 'duration_minutes' : duration_minutes } )
+                    print('added %s' % calendar_sched[-1]['title'])
+    except Exception as err:
+        print("ERROR %s while reading or parsing ical %s" % (err, args.ical_addr))
+        if args.only_check_schedule : quit()
 
 
 obs_exe = r"C:\Program Files\obs-studio\bin\64bit\obs64.exe"
