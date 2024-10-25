@@ -665,6 +665,8 @@ def run_schedule():
     need_obs = False
     obs_is_running = (find_process(obs_exe) is not None)
 
+    yt_to_sched = { }
+
     if sid is not None:
         need_obs = upcoming_list or active_list
 
@@ -687,11 +689,11 @@ def run_schedule():
 
                 if (True
                         and s.title == title
-                        and s.end == end
-                        and ((s.start == start) or (s.start > now))
+                        and ((s.start == start) or (s.start < now))
                         and bsid == sid):
                     # have to remove this broadcast from my list so it is not confused with another stream
                     yt_possible_list.remove(b)
+                    yt_to_sched[b['id']] = s
                     break
             else:
                 # disabling below because it messes up need_obs which then starts obs and leaves it running
@@ -713,10 +715,20 @@ def run_schedule():
     # note that we make a copy of the list so we can manipulate the original list in the loop
     # see https://stackoverflow.com/questions/1207406/how-to-remove-items-from-a-list-while-iterating/1207427#1207427
     for b in yt_upcoming_list[:]:
+
         start = datetime.datetime.fromisoformat(b['snippet']['scheduledStartTime'])
         end = datetime.datetime.fromisoformat(b['snippet']['scheduledEndTime'])
         bid = b['id']
         title = b['snippet']['title']
+
+        # if the schedule has an end time that is later
+        # than the current end time, use that instead
+        # this will allow us to extend scheduled event times
+        if b['id'] in yt_to_sched:
+            s_end = yt_to_sched[b['id']].end
+            if s_end > end:
+                print('extending broadcast %s till %s (from %s)' % (title, s_end, end))
+                end = s_end
 
         # check if the broadcast should have ended by now
         if now > end:
@@ -777,6 +789,15 @@ def run_schedule():
         bid = b['id']
         title = b['snippet']['title']
 
+
+        # if the schedule has an end time that is later
+        # than the current end time, use that instead
+        # this will allow us to extend scheduled event times
+        if b['id'] in yt_to_sched:
+            s_end = yt_to_sched[b['id']].end
+            if s_end > end:
+                print('extending broadcast %s till %s (from %s)' % (title, s_end, end))
+                end = s_end
 
         extra_minutes = epilogue_time
         extra_minutes += datetime.timedelta(seconds=0) if b['contentDetails']['boundStreamId'] == sid else datetime.timedelta(minutes=30)
