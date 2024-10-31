@@ -689,13 +689,18 @@ def run_schedule():
 
                 if (True
                         and s.title == title
-                        and ((s.start == start) or (s.start < now))
+                        and ((s.start == start) or ((s.start < start) and (s.start < now)))
                         and bsid == sid):
                     # have to remove this broadcast from my list so it is not confused with another stream
                     yt_possible_list.remove(b)
+                    # also remember that this YT broadcast is really this one
                     yt_to_sched[b['id']] = s
                     break
             else:
+
+                # TODO: what about scheduled streams we cannot schedule in YT?
+                # - probably want to actually count streams in YT that should get streamed and if that list is empty we should set needs_obs=False
+
                 # disabling below because it messes up need_obs which then starts obs and leaves it running
                 # # this broadcast is not in YT yet. Do not schedule it if the end time is
                 # # in less than a minute - it is just not worth it!
@@ -704,8 +709,8 @@ def run_schedule():
                 #     continue
                 start = s.start
                 end = s.end
-                #start = start if start > now else now + datetime.timedelta(seconds=5)
-                #end = end if start < end else start + datetime.timedelta(seconds=60)
+                start = start if start > now else now + datetime.timedelta(seconds=5)
+                end = end if start < end else start + datetime.timedelta(seconds=60)
                 b = schedule_broadcast(title=s.title, start=start, end=end)
                 new_broadcast = bind_broadcast(sid=sid, bid=b["id"])
                 yt_upcoming_list.append(new_broadcast)
