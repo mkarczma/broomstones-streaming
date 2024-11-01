@@ -77,6 +77,7 @@ prologue_time = datetime.timedelta(minutes=args.prologue_minutes)
 epilogue_time = datetime.timedelta(minutes=args.epilogue_minutes)
 diff_10minutes = datetime.timedelta(minutes=10)
 diff_1minute = datetime.timedelta(minutes=1)
+diff_1day = datetime.timedelta(days=1)
 
 
 real_start_time = None
@@ -336,7 +337,10 @@ class ScheduledStream:
         self.title = title
 
     def __str__(self):
-        return '{ title: "' + self.title + '", start: ' + str(self.start) + ', end: ' + str(self.end) + ' }'
+        if hasattr(self, 'status'):
+            return '{ title: "' + self.title + '", status: "' + self.status + '", start: ' + str(self.start) + ', end: ' + str(self.end) + ' }'
+        else:
+            return '{ title: "' + self.title + '", start: ' + str(self.start) + ', end: ' + str(self.end) + ' }'
 
 schedule_list = [ ]
 
@@ -413,6 +417,7 @@ if args.only_check_schedule : quit()
 # of should go active in the next 10 minutes
 upcoming_list = []
 active_list = []
+finished_list = []
 for s in schedule_list:
 
     if args.print_schedule:
@@ -420,10 +425,15 @@ for s in schedule_list:
 
     # first the currently active
     if (s.start - prologue_time <= now) and (s.end + epilogue_time >= now):
+        s.status = "active"
         active_list.append(s)
     # now the soon-to-start
     elif s.start > now and s.start - prologue_time - diff_10minutes <= now:
+        s.status = "upcoming"
         upcoming_list.append(s)
+    elif s.end <= now and s.end + diff_1day > now:
+        s.status = "finished"
+        finished_list.append(s)
 
 
 sched_string = ""
@@ -673,7 +683,7 @@ def run_schedule():
         # check if there are streams in the schedule which either should be active
         # or need to be inserted into YouTube
         yt_possible_list = yt_active_list + yt_upcoming_list
-        for s in upcoming_list + active_list:
+        for s in upcoming_list + active_list + finished_list:
             # find the stream in the yt_possible_list
             # it would be easier to turn the combined list into a dictionary and
             # search it by title, but there is a possibility of having multiple identical titles!
@@ -697,23 +707,23 @@ def run_schedule():
                     yt_to_sched[b['id']] = s
                     break
             else:
+                if s.status != "finished":
+                    # TODO: what about scheduled streams we cannot schedule in YT?
+                    # - probably want to actually count streams in YT that should get streamed and if that list is empty we should set needs_obs=False
 
-                # TODO: what about scheduled streams we cannot schedule in YT?
-                # - probably want to actually count streams in YT that should get streamed and if that list is empty we should set needs_obs=False
-
-                # disabling below because it messes up need_obs which then starts obs and leaves it running
-                # # this broadcast is not in YT yet. Do not schedule it if the end time is
-                # # in less than a minute - it is just not worth it!
-                # if s.end - diff_1minute < now :
-                #     print("skipping broadcast", s.title, " because it will end in less than a minute at ", s.end, " now ", now, " end-1min ", s.end-diff_1minute)
-                #     continue
-                start = s.start
-                end = s.end
-                start = start if start > now else now + datetime.timedelta(seconds=5)
-                end = end if start < end else start + datetime.timedelta(seconds=60)
-                b = schedule_broadcast(title=s.title, start=start, end=end)
-                new_broadcast = bind_broadcast(sid=sid, bid=b["id"])
-                yt_upcoming_list.append(new_broadcast)
+                    # disabling below because it messes up need_obs which then starts obs and leaves it running
+                    # # this broadcast is not in YT yet. Do not schedule it if the end time is
+                    # # in less than a minute - it is just not worth it!
+                    # if s.end - diff_1minute < now :
+                    #     print("skipping broadcast", s.title, " because it will end in less than a minute at ", s.end, " now ", now, " end-1min ", s.end-diff_1minute)
+                    #     continue
+                    start = s.start
+                    end = s.end
+                    start = start if start > now else now + datetime.timedelta(seconds=5)
+                    end = end if start < end else start + datetime.timedelta(seconds=60)
+                    b = schedule_broadcast(title=s.title, start=start, end=end)
+                    new_broadcast = bind_broadcast(sid=sid, bid=b["id"])
+                    yt_upcoming_list.append(new_broadcast)
 
 
     # first process the upcoming broadcasts
@@ -731,8 +741,8 @@ def run_schedule():
         # this will allow us to extend scheduled event times
         if b['id'] in yt_to_sched:
             s_end = yt_to_sched[b['id']].end
-            if s_end > end:
-                print('extending broadcast %s till %s (from %s)' % (title, s_end, end))
+            if end != s_end:
+                print('updating broadcast %s end to %s (from %s)' % (title, s_end, end))
                 end = s_end
 
         # check if the broadcast should have ended by now
@@ -800,8 +810,8 @@ def run_schedule():
         # this will allow us to extend scheduled event times
         if b['id'] in yt_to_sched:
             s_end = yt_to_sched[b['id']].end
-            if s_end > end:
-                print('extending broadcast %s till %s (from %s)' % (title, s_end, end))
+            if end != s_end:
+                print('updating broadcast %s end to %s (from %s)' % (title, s_end, end))
                 end = s_end
 
         extra_minutes = epilogue_time
