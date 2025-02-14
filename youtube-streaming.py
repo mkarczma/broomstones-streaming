@@ -56,6 +56,8 @@ parser.add_argument('--prologue_minutes', default=0, type=int)
 parser.add_argument('--epilogue_minutes', default=0, type=int)
 parser.add_argument('--ical_addr', help='"Secret address in iCal format" from specific Calendar Settings')
 parser.add_argument('--ical_sheet_name', help='Sheet string name in iCal - must be in LOCATION field')
+parser.add_argument('--web_calendar_json_url', help='CCM URL with a Json calendar with no credentials')
+parser.add_argument('--web_calendar_json_sheet_name', help='CCM URL sheet name')
 
 
 args = parser.parse_args()
@@ -262,6 +264,41 @@ if args.ical_addr:
                     print('added %s' % calendar_sched[-1]['title'])
     except Exception as err:
         print("ERROR %s while reading or parsing ical %s" % (err, args.ical_addr))
+        if args.only_check_schedule : quit()
+
+
+if args.web_calendar_json_url:
+    try:
+        if not args.web_calendar_json_sheet_name:
+            print("ERROR: if --web_calendar_json_url is given, --web_calendar_json_sheet_name must also be present")
+            quit()
+
+        response = requests.get(args.web_calendar_json_url)
+        cal_json = response.content.decode('utf-8')
+        cal = json.loads(cal_json)
+
+        print("web json cal: %s" % cal)
+
+        for g in cal["games"]:
+            if g['sheet'] == args.web_calendar_json_sheet_name:
+
+                date_format = "%Y-%m-%d %I:%M %p"
+
+                start_time = datetime.datetime.strptime(g['date'] + ' ' + g['starttime'], date_format)
+                end_time = datetime.datetime.strptime(g['date'] + ' ' + g['endtime'], date_format)
+                duration_minutes = math.ceil((end_time - start_time).total_seconds() / 60)
+
+                title = "%s - %s, %s" % (g['league'], start_time.strftime("%b %d, %Y %#I:%M %p"), args.sheet)
+
+                print("game = %s --- start %s duration %d" % (title, start_time, duration_minutes))
+
+                calendar_sched.append( { 'title' : title, 'when' : start_time.astimezone(local_tz).isoformat(), 'duration_minutes' : duration_minutes } )
+                print('added %s' % calendar_sched[-1]['title'])
+
+
+
+    except Exception as err:
+        print("ERROR %s while reading or parsing CCM web calendar %s" % (err, args.web_calendar_json_url))
         if args.only_check_schedule : quit()
 
 
