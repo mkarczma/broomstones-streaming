@@ -9,6 +9,7 @@ import wmi
 import io
 import requests
 import math
+import shutil
 
 import urllib.request
 import icalendar
@@ -58,6 +59,8 @@ parser.add_argument('--ical_addr', help='"Secret address in iCal format" from sp
 parser.add_argument('--ical_sheet_name', help='Sheet string name in iCal - must be in LOCATION field')
 parser.add_argument('--web_calendar_json_url', help='CCM URL with a Json calendar with no credentials')
 parser.add_argument('--web_calendar_json_sheet_name', help='CCM URL sheet name')
+parser.add_argument('--delete_sentinel', help='the location of sentinel to delete - can be directory or file', type=str)
+
 
 
 args = parser.parse_args()
@@ -317,6 +320,13 @@ def find_process(path=obs_exe):
 
 def start_obs():
     if find_process(obs_exe) is None:
+        if args.delete_sentinel is not None:
+            if os.path.isfile(args.delete_sentinel):
+                print("Deleting sentinel file before starting OBS: %s" % args.delete_sentinel)
+                os.remove(args.delete_sentinel)
+            if os.path.isdir(args.delete_sentinel):
+                print("Deleting sentinel dir before starting OBS: %s" % args.delete_sentinel)
+                shutil.rmtree(args.delete_sentinel)
         obs_args = [ obs_exe, "--startstreaming", "--disable-shutdown-check" ]
         obs_dir = os.path.dirname(obs_exe)
         print("Starting OBS and streaming - this will take about 10 seconds")
